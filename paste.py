@@ -1,4 +1,3 @@
-import cv2
 from PIL import ImageFont, ImageDraw, Image
 import argparse
 # https://blog.gtwang.org/programming/opencv-drawing-functions-tutorial/
