@@ -11,6 +11,7 @@ import smtplib
 import getpass
 import argparse
 import paste
+import re
 
 class SMTPWrapper():
     def __init__(self):
@@ -74,7 +75,14 @@ class SMTPWrapper():
         msgAlternative = MIMEMultipart('alternative')
         msg.attach(msgAlternative)
 
-        msgText = MIMEText('This is the alternative plain text message.')
+        gathering_names = ["2019.7-9.png", "2019.10-12.png"]
+
+        with open("plain.txt", "r") as f:
+            plain_content = name + f.read()
+            plain_content = re.sub("name_placeholder", name, plain_content)
+            plain_content = re.sub("gathering1_placeholder", gathering_names[0], plain_content)
+            plain_content = re.sub("gathering2_placeholder", gathering_names[1], plain_content)
+            msgText = MIMEText(plain_content)
         msgAlternative.attach(msgText)
         
         # https://gist.github.com/jossef/2a4a46a899820d5d57b4
@@ -82,20 +90,27 @@ class SMTPWrapper():
         with open("content.txt", "r") as f:
             content = "<div dir=\"ltr\">" + name + f.read().strip() + "</div>"
             msgText = MIMEText(content, 'html', "utf-8")
+
         msgAlternative.attach(msgText)
         
+        title_png = title + ".png"
         with greeting_path.open("rb") as f:
-            msgImage = MIMEImage(f.read(), name=title+".png")
+            msgImage = MIMEImage(f.read(), name=title_png)
+        # https://stackoverflow.com/questions/37019708/how-can-i-customize-file-name-in-python-mimeimage
+        # https://docs.python.org/3.6/library/email.message.html#email.message.EmailMessage.add_header
+        msgImage.add_header('Content-Disposition', "attachment", filename=title_png)
         msgImage.add_header('Content-ID', '<greeting>')
         msg.attach(msgImage)
 
         with gatherings[0].open("rb") as f:
-            msgImage = MIMEImage(f.read(), name="2019.7-9.png")
+            msgImage = MIMEImage(f.read(), name=gathering_names[0])
+        msgImage.add_header('Content-Disposition', "attachment", filename=gathering_names[0])
         msgImage.add_header('Content-ID', '<gathering1>')
         msg.attach(msgImage)
 
         with gatherings[1].open("rb") as f:
-            msgImage = MIMEImage(f.read(), name="2019.10-12.png")
+            msgImage = MIMEImage(f.read(), name=gathering_names[1])
+        msgImage.add_header('Content-Disposition', "attachment", filename=gathering_names[1])
         msgImage.add_header('Content-ID', '<gathering2>')
         msg.attach(msgImage)
 
