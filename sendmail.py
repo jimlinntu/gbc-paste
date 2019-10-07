@@ -12,6 +12,7 @@ import getpass
 import argparse
 import paste
 import re
+from PIL import Image
 
 class SMTPWrapper():
     def __init__(self):
@@ -58,13 +59,13 @@ class SMTPWrapper():
         Path('outgoing.msg').write_bytes(bytes(msg))
         return msg
 
-    def create_message_mime(self, name, greeting_image_path, dest_email):
+    def create_message_mime(self, name, greeting_image_path, dest_email, gathering_path, gathering_name):
         gmail_user = "gbc.life.tw@gmail.com"
         
         title = name
         greeting_path = Path(greeting_image_path)
-        gatherings = [Path("./gathering1.png"), Path("./gathering2.png")]
         assert(greeting_path.exists())
+        gathering = Path(gathering_path)
 
         msg = MIMEMultipart('related')
         msg['Subject'] = '懷恩堂生命助道會歡迎你！'
@@ -75,13 +76,10 @@ class SMTPWrapper():
         msgAlternative = MIMEMultipart('alternative')
         msg.attach(msgAlternative)
 
-        gathering_names = ["2019.7-9.png", "2019.10-12.png"]
-
         with open("plain.txt", "r") as f:
             plain_content = name + f.read()
             plain_content = re.sub("name_placeholder", name, plain_content)
-            plain_content = re.sub("gathering1_placeholder", gathering_names[0], plain_content)
-            plain_content = re.sub("gathering2_placeholder", gathering_names[1], plain_content)
+            plain_content = re.sub("gathering1_placeholder", gathering_name, plain_content)
             msgText = MIMEText(plain_content)
         msgAlternative.attach(msgText)
         
@@ -102,17 +100,12 @@ class SMTPWrapper():
         msgImage.add_header('Content-ID', '<greeting>')
         msg.attach(msgImage)
 
-        with gatherings[0].open("rb") as f:
-            msgImage = MIMEImage(f.read(), name=gathering_names[0])
-        msgImage.add_header('Content-Disposition', "attachment", filename=gathering_names[0])
+        with gathering.open("rb") as f:
+            msgImage = MIMEImage(f.read(), name=gathering_name)
+        msgImage.add_header('Content-Disposition', "attachment", filename=gathering_name)
         msgImage.add_header('Content-ID', '<gathering1>')
         msg.attach(msgImage)
 
-        with gatherings[1].open("rb") as f:
-            msgImage = MIMEImage(f.read(), name=gathering_names[1])
-        msgImage.add_header('Content-Disposition', "attachment", filename=gathering_names[1])
-        msgImage.add_header('Content-ID', '<gathering2>')
-        msg.attach(msgImage)
 
         # https://stackoverflow.com/questions/37019708/how-can-i-customize-file-name-in-python-mimeimage
 
@@ -123,27 +116,51 @@ class SMTPWrapper():
 
 def main(args):
     smtp_wrapper = SMTPWrapper()
-    name = args.name + "同學" if args.student else args.name
-    print("=" * 70)
-    print("Dumping a greeting card")
-    print("=" * 70)
-    smtp_wrapper.dump_greeting_image(name, args.output)
-    print("=" * 70)
-    print("Creating a message")
-    print("=" * 70)
-    msg = smtp_wrapper.create_message_mime(args.name, args.output, args.dest_email)
-    print("=" * 70)
-    print("Sending the message")
-    print("=" * 70)
-    smtp_wrapper.sendMsg(msg)
 
+    greeting_card_not_success = []
+    with open(args.name_file, "r") as f:
+        for line in f:
+            line = line.strip()
+            splitted = line.split(",")
+            assert(len(splitted) == 2)
+            name, dest_email = splitted
+            name = name + "同學" if args.student else name
+            print("=" * 70)
+            print("Dumping a greeting card")
+            print("=" * 70)
+            smtp_wrapper.dump_greeting_image(name, args.output)
+            if args.check_greeting_card:
+                print("=" * 70)
+                print("Please check if this greeting card is ok, and then press c to continue sending.")
+                pil_image = Image.open(args.output)
+                pil_image.show()
+                response = input().strip()
+                if response != "c":
+                    greeting_card_not_success.append(line)
+                    continue
+                print("=" * 70)
+            print("=" * 70)
+            print("Creating a message")
+            print("=" * 70)
+            msg = smtp_wrapper.create_message_mime(name, args.output, dest_email, args.gathering_image_path, args.gathering_name)
+            print("=" * 70)
+            print("Sending the message")
+            print("=" * 70)
+            smtp_wrapper.sendMsg(msg)
+
+    print("=" * 70)
+    print("Not success list: ")
+    print(greeting_card_not_success)
+    print("=" * 70)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("name", type=str, help="Subject's name")
-    parser.add_argument("dest_email", type=str, help="Destination email address")
+    parser.add_argument("name_file", type=str, help="names and their corresponding emails")
+    parser.add_argument("gathering_image_path", type=str, help="The gathering card")
+    parser.add_argument("gathering_name", type=str, help="The gathering card's filename")
     parser.add_argument("output", type=str, help="Image output path")
     parser.add_argument("--student", action="store_true", default=False)
+    parser.add_argument("--check_greeting_card", action="store_true", default=False)
     args = parser.parse_args()
     main(args)
 
