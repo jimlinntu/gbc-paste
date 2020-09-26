@@ -17,6 +17,9 @@ from PIL import Image
 class SMTPWrapper():
     def __init__(self):
         self.smtp = self.initSMTP("gbc.life.tw@gmail.com")
+        # seems the most pleasant size within an email
+        # not too big, not too small
+        self.max_long_size = 560
         
     def initSMTP(self, sender):
         smtp = smtplib.SMTP("smtp.gmail.com:587")
@@ -32,6 +35,18 @@ class SMTPWrapper():
     
     def dump_greeting_image(self, name, greeting_image_path):
         paste.paste(name, greeting_image_path)
+
+    def get_image_size(self, gathering_image_path):
+        assert isinstance(gathering_image_path, Path)
+        width, height = Image.open(str(gathering_image_path)).size
+        long_size = max(width, height)
+        ratio = 1.
+        if long_size > self.max_long_size:
+            ratio = self.max_long_size / long_size 
+
+        width = int(width * ratio)
+        height = int(height * ratio)
+        return width, height
         
     def create_message(self, name, greeting_image_path, dest_email):
         gmail_user = "gbc.life.tw@gmail.com"
@@ -76,7 +91,7 @@ class SMTPWrapper():
         msgAlternative = MIMEMultipart('alternative')
         msg.attach(msgAlternative)
 
-        with open("plain.txt", "r") as f:
+        with open("plain.txt", "r", encoding="utf-8") as f:
             plain_content = name + f.read()
             plain_content = re.sub("name_placeholder", name, plain_content)
             plain_content = re.sub("gathering1_placeholder", gathering_name, plain_content)
@@ -85,8 +100,12 @@ class SMTPWrapper():
         
         # https://gist.github.com/jossef/2a4a46a899820d5d57b4
 
-        with open("content.txt", "r") as f:
+        with open("content.txt", "r", encoding="utf-8") as f:
             content = "<div dir=\"ltr\">" + name + f.read().strip() + "</div>"
+            # dynamically decide the gathering image's width and height
+            width, height = self.get_image_size(gathering)
+            content = re.sub("!gathering_width", str(width), content)
+            content = re.sub("!gathering_height", str(height), content)
             msgText = MIMEText(content, 'html', "utf-8")
 
         msgAlternative.attach(msgText)
@@ -118,7 +137,7 @@ def main(args):
     smtp_wrapper = SMTPWrapper()
 
     greeting_card_not_success = []
-    with open(args.name_file, "r") as f:
+    with open(args.name_file, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             splitted = line.split(",")
